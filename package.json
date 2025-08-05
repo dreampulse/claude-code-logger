@@ -11,7 +11,7 @@
     "start": "node dist/cli.js",
     "dev": "ts-node src/cli.ts",
     "dev:log": "stdbuf -oL -eL ts-node src/cli.ts 2>&1 | tee middleware-logger.log",
-    "dev:log-example": "stdbuf -oL -eL ts-node src/cli.ts start -p 8000 -h api.anthropic.com -r 443 --https --log-body --merge-sse 2>&1 | tee middleware-logger.log",
+    "dev:log-example": "stdbuf -oL -eL ts-node src/cli.ts start -p 8000 -h api.anthropic.com -r 443 --https --chat-mode --verbose 2>&1 | tee middleware-logger.log",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },

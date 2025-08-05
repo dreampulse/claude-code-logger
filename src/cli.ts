@@ -22,6 +22,8 @@ program
   .option('--log-body', 'Log request and response bodies', false)
   .option('--merge-sse', 'Merge Server-Sent Events into readable messages', false)
   .option('--debug', 'Show debug messages for troubleshooting', false)
+  .option('--chat-mode', 'Show only chat conversation with live streaming', false)
+  .option('-v, --verbose', 'Show full prompts without truncation', false)
   .action(async (options) => {
     try {
       const server = new ProxyServer({
@@ -32,7 +34,9 @@ program
         localHttps: options.localHttps,
         logBody: options.logBody,
         mergeSse: options.mergeSse,
-        debug: options.debug
+        debug: options.debug,
+        chatMode: options.chatMode,
+        verbose: options.verbose
       });
 
       await server.start();

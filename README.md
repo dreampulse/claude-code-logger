@@ -45,6 +45,8 @@ npm run dev -- start -p 8080 -h example.com -r 80
 - `--local-https`: HTTPS-Verbindungen lokal akzeptieren
 - `--log-body`: Request und Response Bodies loggen
 - `--merge-sse`: Server-Sent Events zu lesbaren Nachrichten zusammenfassen
+- `--debug`: Debug-Meldungen für Troubleshooting anzeigen
+- `--chat-mode`: Nur Chat-Unterhaltung mit Live-Streaming anzeigen
 
 ## Beispiel
 
@@ -57,6 +59,9 @@ npm run dev -- start -p 8080 -h httpbin.org -r 443 --https --log-body
 
 # Mit SSE Merging (für AI API Streams)
 npm run dev -- start -p 8080 -h api.anthropic.com -r 443 --https --log-body --merge-sse
+
+# Chat-Modus (nur Unterhaltung anzeigen)
+npm run dev -- start -p 8080 -h api.anthropic.com -r 443 --https --chat-mode
 
 # Test mit curl
 curl http://localhost:8080/get

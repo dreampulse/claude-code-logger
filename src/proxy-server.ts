@@ -13,6 +13,8 @@ export interface ProxyServerOptions {
   logBody?: boolean;
   mergeSse?: boolean;
   debug?: boolean;
+  chatMode?: boolean;
+  verbose?: boolean;
 }
 
 interface SseEvent {
@@ -62,6 +64,10 @@ export class ProxyServer {
     
     let requestBody = Buffer.alloc(0);
     
+    if (this.options.chatMode && this.options.debug) {
+      console.log(chalk.magenta(`🔍 CHAT DEBUG: handleRequest called for ${req.method} ${req.url}`));
+    }
+    
     this.logRequest(requestId, req);
 
     const options: http.RequestOptions | https.RequestOptions = {
@@ -90,14 +96,18 @@ export class ProxyServer {
     });
 
     req.on('data', (chunk) => {
-      if (this.options.logBody) {
+      if (this.options.logBody || this.options.chatMode) {
         requestBody = Buffer.concat([requestBody, chunk]);
       }
       proxyReq.write(chunk);
     });
 
     req.on('end', () => {
-      if (this.options.logBody && requestBody.length > 0) {
+      if (this.options.chatMode && this.options.debug) {
+        console.log(chalk.magenta(`🔍 CHAT DEBUG: Request ended, body length: ${requestBody.length}, logBody: ${this.options.logBody}`));
+      }
+      
+      if ((this.options.logBody || this.options.chatMode) && requestBody.length > 0) {
         this.logRequestBody(requestId, requestBody, req.headers);
       }
       proxyReq.end();
@@ -123,14 +133,18 @@ export class ProxyServer {
     res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
 
     proxyRes.on('data', (chunk) => {
-      if (this.options.logBody) {
+      if (this.options.logBody || this.options.chatMode) {
         responseBody = Buffer.concat([responseBody, chunk]);
       }
       res.write(chunk);
     });
 
     proxyRes.on('end', () => {
-      if (this.options.logBody && responseBody.length > 0) {
+      if (this.options.chatMode && this.options.debug) {
+        console.log(chalk.magenta(`🔍 CHAT DEBUG: Response ended, body length: ${responseBody.length}, logBody: ${this.options.logBody}`));
+      }
+      
+      if ((this.options.logBody || this.options.chatMode) && responseBody.length > 0) {
         this.logResponseBody(requestId, responseBody, proxyRes.headers);
       }
       res.end();
@@ -185,6 +199,10 @@ export class ProxyServer {
   }
 
   private logRequest(requestId: string, req: http.IncomingMessage): void {
+    if (this.options.chatMode && !this.options.logBody) {
+      return; // Skip regular request logging in chat mode unless log-body is also enabled
+    }
+    
     const timestamp = new Date().toISOString();
     const method = req.method?.toUpperCase() || 'UNKNOWN';
     const url = req.url || '/';
@@ -204,6 +222,10 @@ export class ProxyServer {
   }
 
   private logResponse(requestId: string, proxyRes: http.IncomingMessage, duration: number): void {
+    if (this.options.chatMode && !this.options.logBody) {
+      return; // Skip regular response logging in chat mode unless log-body is also enabled
+    }
+    
     const statusCode = proxyRes.statusCode || 0;
     const statusColor = statusCode >= 400 ? chalk.red : statusCode >= 300 ? chalk.yellow : chalk.green;
     
@@ -223,9 +245,28 @@ export class ProxyServer {
 
   private logRequestBody(requestId: string, body: Buffer, headers?: http.IncomingHttpHeaders): void {
     const contentEncoding = headers?.['content-encoding'] as string;
+    
+    if (this.options.chatMode) {
+      if (this.options.debug) {
+        console.log(chalk.magenta(`🔍 CHAT DEBUG: logRequestBody called with ${body.length} bytes`));
+      }
+      // For chat mode, we need the full body to extract messages
+      const fullBodyStr = this.getFullBody(body, contentEncoding);
+      this.extractChatMessage(requestId, fullBodyStr, 'user');
+    }
+    
+    // For display, use formatted (truncated) version
     const bodyStr = this.formatBody(body, contentEncoding);
-    console.log(chalk.cyan(`[${requestId}] 📤 Request Body:`));
-    console.log(chalk.gray(bodyStr));
+    
+    if (this.options.logBody || this.options.chatMode) {
+      if (this.options.chatMode) {
+        // Parse and format request in compact way
+        this.formatCompactRequest(requestId, bodyStr);
+      } else {
+        console.log(chalk.cyan(`[${requestId}] 📤 Request Body:`));
+        console.log(chalk.gray(bodyStr));
+      }
+    }
   }
 
   private logResponseBody(requestId: string, body: Buffer, headers?: http.IncomingHttpHeaders): void {
@@ -233,15 +274,66 @@ export class ProxyServer {
     const contentEncoding = headers?.['content-encoding'] as string;
     
     // Handle Server-Sent Events specially
-    if (this.options.mergeSse && contentType?.includes('text/event-stream')) {
+    if ((this.options.mergeSse || this.options.chatMode) && contentType?.includes('text/event-stream')) {
       this.processSseStream(requestId, body);
       return;
     }
     
+    if (this.options.chatMode) {
+      if (this.options.debug) {
+        console.log(chalk.magenta(`🔍 CHAT DEBUG: logResponseBody called with ${body.length} bytes, content-type: ${contentType}`));
+      }
+      // For chat mode, we need the full body to extract messages
+      const fullBodyStr = this.getFullBody(body, contentEncoding);
+      this.extractChatMessage(requestId, fullBodyStr, 'assistant');
+    }
+    
+    // For display, use formatted (truncated) version
     const bodyStr = this.formatBody(body, contentEncoding);
-    console.log(chalk.cyan(`[${requestId}] 📥 Response Body:`));
-    console.log(chalk.gray(bodyStr));
-    console.log(chalk.gray('─'.repeat(60)));
+    
+    if (this.options.logBody || this.options.chatMode) {
+      if (this.options.chatMode) {
+        // Parse and format response in compact way
+        this.formatCompactResponse(requestId, bodyStr);
+      } else {
+        console.log(chalk.cyan(`[${requestId}] 📥 Response Body:`));
+        console.log(chalk.gray(bodyStr));
+        console.log(chalk.gray('─'.repeat(60)));
+      }
+    }
+  }
+
+  private getFullBody(body: Buffer, contentEncoding?: string): string {
+    try {
+      // Handle compressed content
+      let decompressedBody = body;
+      if (contentEncoding) {
+        try {
+          switch (contentEncoding.toLowerCase()) {
+            case 'gzip':
+              decompressedBody = zlib.gunzipSync(body);
+              break;
+            case 'deflate':
+              decompressedBody = zlib.inflateSync(body);
+              break;
+            case 'br':
+              decompressedBody = zlib.brotliDecompressSync(body);
+              break;
+          }
+        } catch {
+          return '';
+        }
+      }
+
+      // Check if it's likely binary data
+      if (this.isBinaryData(decompressedBody)) {
+        return '';
+      }
+
+      return decompressedBody.toString('utf8');
+    } catch {
+      return '';
+    }
   }
 
   private formatBody(body: Buffer, contentEncoding?: string): string {
@@ -329,7 +421,13 @@ export class ProxyServer {
         mergedContent: ''
       };
       this.sseMessages.set(requestId, sseMessage);
-      console.log(chalk.cyan(`[${requestId}] 📥 SSE Stream Started:`));
+      
+      if (!this.options.chatMode) {
+        console.log(chalk.cyan(`[${requestId}] 📥 SSE Stream Started:`));
+      } else {
+        // In chat mode, show the assistant prefix when starting a new stream
+        process.stdout.write(chalk.blue('🤖 '));
+      }
     }
     
     // Add new events
@@ -370,7 +468,13 @@ export class ProxyServer {
     
     if (textDeltas.length > 0) {
       sseMessage.mergedContent += textDeltas.join('');
-      console.log(chalk.gray(`[${requestId}] 📝 +${textDeltas.join('')}`));
+      
+      if (this.options.chatMode) {
+        // In chat mode, show streaming text directly
+        process.stdout.write(chalk.white(textDeltas.join('')));
+      } else {
+        console.log(chalk.gray(`[${requestId}] 📝 +${textDeltas.join('')}`));
+      }
     }
     
     // Check if stream is complete
@@ -383,9 +487,13 @@ export class ProxyServer {
     }
     
     if (hasMessageStop || hasContentBlockStop || hasMessageDelta) {
-      console.log(chalk.cyan(`[${requestId}] 📥 SSE Complete Message:`));
-      console.log(chalk.green(sseMessage.mergedContent || '<empty message>'));
-      console.log(chalk.gray('─'.repeat(60)));
+      if (this.options.chatMode) {
+        console.log(''); // New line after streaming
+      } else {
+        console.log(chalk.cyan(`[${requestId}] 📥 SSE Complete Message:`));
+        console.log(chalk.green(sseMessage.mergedContent || '<empty message>'));
+        console.log(chalk.gray('─'.repeat(60)));
+      }
       this.sseMessages.delete(requestId);
     }
   }
@@ -395,10 +503,7 @@ export class ProxyServer {
     const lines = sseData.split('\n');
     let currentEvent: SseEvent = {};
     
-    if (this.options.debug) {
-      console.log(chalk.magenta(`🔍 DEBUG: Parsing SSE data (${sseData.length} chars):`));
-      console.log(chalk.gray(sseData.substring(0, 200) + (sseData.length > 200 ? '...' : '')));
-    }
+    // Debug logging handled in processSseStream
     
     for (const line of lines) {
       const trimmedLine = line.trim();
@@ -407,9 +512,7 @@ export class ProxyServer {
         // Empty line indicates end of event
         if (Object.keys(currentEvent).length > 0) {
           events.push(currentEvent);
-          if (this.options.debug) {
-            console.log(chalk.magenta(`🔍 DEBUG: Added event: ${JSON.stringify(currentEvent)}`));
-          }
+          // Debug logging handled in processSseStream
           currentEvent = {};
         }
       } else if (trimmedLine.startsWith('event:')) {
@@ -425,11 +528,190 @@ export class ProxyServer {
     // Add last event if exists
     if (Object.keys(currentEvent).length > 0) {
       events.push(currentEvent);
-      if (this.options.debug) {
-        console.log(chalk.magenta(`🔍 DEBUG: Added final event: ${JSON.stringify(currentEvent)}`));
-      }
+      // Debug logging handled in processSseStream
     }
     
     return events;
+  }
+
+  private formatCompactRequest(_requestId: string, bodyStr: string): void {
+    try {
+      const data = JSON.parse(bodyStr);
+      
+      // System prompts - show full content
+      if (data.system && Array.isArray(data.system)) {
+        data.system.forEach((s: any) => {
+          if (s.text) {
+            console.log(chalk.yellow(`  📋 System:`));
+            console.log(chalk.gray(`  ${s.text}`));
+          }
+        });
+      }
+      
+      // Show request size for debugging
+      console.log(chalk.gray(`  📦 Request: ${bodyStr.length} bytes`));
+      
+      if (this.options.debug) {
+        // In debug mode, show if there are large content blocks
+        if (data.messages && Array.isArray(data.messages)) {
+          data.messages.forEach((msg: any, idx: number) => {
+            if (Array.isArray(msg.content)) {
+              msg.content.forEach((item: any) => {
+                if (item.type === 'text' && item.text && item.text.length > 1000) {
+                  console.log(chalk.magenta(`  🔍 DEBUG: Message[${idx}] contains ${item.text.length} chars`));
+                }
+              });
+            }
+          });
+        }
+      }
+    } catch {
+      // Not JSON
+    }
+  }
+  
+  private formatCompactResponse(_requestId: string, _bodyStr: string): void {
+    // In chat mode, we only care about the prompts/content, not metadata
+    // Response content is already handled by extractChatMessage
+  }
+  
+  private extractChatMessage(_requestId: string, bodyStr: string, role: 'user' | 'assistant'): void {
+    if (this.options.debug) {
+      console.log(chalk.magenta(`🔍 CHAT DEBUG: Extracting ${role} message from ${bodyStr.length} chars`));
+    }
+    
+    try {
+      const data = JSON.parse(bodyStr);
+      if (this.options.debug) {
+        console.log(chalk.magenta(`🔍 CHAT DEBUG: Parsed JSON for ${role}:`, JSON.stringify(data, null, 2).substring(0, 200)));
+      }
+      
+      if (role === 'user' && data.messages && Array.isArray(data.messages)) {
+        if (this.options.debug) {
+          console.log(chalk.magenta(`🔍 CHAT DEBUG: Found ${data.messages.length} messages`));
+        }
+        
+        // Extract ALL messages to see the full conversation
+        data.messages.forEach((message: any, idx: number) => {
+          if (this.options.debug && idx === data.messages.length - 1) {
+            console.log(chalk.magenta(`🔍 CHAT DEBUG: Message[${idx}]:`, JSON.stringify(message).substring(0, 200)));
+          }
+          
+          if (message.role === 'user') {
+            console.log('');
+            
+            // Handle different content formats
+            if (typeof message.content === 'string') {
+              console.log(chalk.green('👤 ') + chalk.white(message.content));
+            } else if (Array.isArray(message.content)) {
+              // Complex content array
+              message.content.forEach((item: any) => {
+                if (item.type === 'text' && item.text) {
+                  // Parse and display content smartly
+                  if (item.text.includes('<system-reminder>')) {
+                    // Extract and show system reminders
+                    const reminders = item.text.match(/<system-reminder>([\s\S]*?)<\/system-reminder>/g);
+                    if (reminders) {
+                      reminders.forEach((reminder: string) => {
+                        const content = reminder.replace(/<\/?system-reminder>/g, '').trim();
+                        console.log(chalk.yellow('  📋 System Reminder:'));
+                        if (this.options.verbose) {
+                          console.log(chalk.gray('  ' + content));
+                        } else {
+                          console.log(chalk.gray('  ' + content.substring(0, 200) + (content.length > 200 ? '...' : '')));
+                        }
+                      });
+                    }
+                    
+                    // Extract the actual user message
+                    const userPart = item.text.split('</system-reminder>').pop()?.trim();
+                    if (userPart && userPart.length > 0) {
+                      console.log(chalk.green('👤 ') + chalk.white(userPart));
+                    }
+                  } else if (item.text.includes('Contents of') && item.text.includes('```')) {
+                    // File content
+                    const fileMatch = item.text.match(/Contents of ([^:]+):/);
+                    if (fileMatch) {
+                      console.log(chalk.cyan(`  📄 File: ${fileMatch[1]}`));
+                      if (this.options.verbose) {
+                        console.log(chalk.gray('  ' + item.text));
+                      } else {
+                        console.log(chalk.gray(`  [${item.text.length} chars of file content]`));
+                      }
+                    }
+                  } else {
+                    // Regular message
+                    console.log(chalk.green('👤 ') + chalk.white(item.text));
+                  }
+                } else if (item.type === 'tool_result' && item.content) {
+                  // Tool results (like file reads)
+                  console.log(chalk.cyan('  🔧 Tool Result:'));
+                  // Check if it looks like file content with line numbers
+                  if (item.content.match(/^\s*\d+→/m)) {
+                    const lines = item.content.split('\n');
+                    console.log(chalk.gray(`  [${lines.length} lines of file content]`));
+                    if (this.options.verbose) {
+                      // Show all lines
+                      console.log(chalk.gray('  ' + lines.join('\n  ')));
+                    } else {
+                      // Show first few lines
+                      console.log(chalk.gray('  ' + lines.slice(0, 5).join('\n  ')));
+                      if (lines.length > 5) {
+                        console.log(chalk.gray('  ...'));
+                      }
+                    }
+                  } else {
+                    if (this.options.verbose) {
+                      console.log(chalk.gray('  ' + item.content));
+                    } else {
+                      console.log(chalk.gray('  ' + item.content.substring(0, 200) + (item.content.length > 200 ? '...' : '')));
+                    }
+                  }
+                }
+              });
+            }
+          } else if (message.role === 'assistant' && idx < data.messages.length - 1) {
+            // Show previous assistant messages in the conversation
+            const content = typeof message.content === 'string' 
+              ? message.content 
+              : message.content?.[0]?.text || '';
+            if (content) {
+              if (this.options.verbose) {
+                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + chalk.white(content));
+              } else {
+                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + chalk.white(content.substring(0, 100) + '...'));
+              }
+            }
+          }
+        });
+      } else if (role === 'assistant' && data.content && Array.isArray(data.content)) {
+        if (this.options.debug) {
+          console.log(chalk.magenta(`🔍 CHAT DEBUG: Assistant response with ${data.content.length} content items`));
+        }
+        
+        // Extract assistant message from non-streaming response
+        const textContent = data.content
+          .filter((item: any) => item.type === 'text')
+          .map((item: any) => item.text)
+          .join('');
+        
+        if (this.options.debug) {
+          console.log(chalk.magenta(`🔍 CHAT DEBUG: Assistant text content: "${textContent}"`));
+        }
+        
+        if (textContent.trim()) {
+          console.log(chalk.blue('🤖 ') + chalk.white(textContent));
+        }
+      } else {
+        if (this.options.debug) {
+          console.log(chalk.magenta(`🔍 CHAT DEBUG: No matching pattern for ${role}. Data keys:`, Object.keys(data)));
+        }
+      }
+    } catch (error) {
+      if (this.options.debug) {
+        console.log(chalk.red(`🔍 CHAT DEBUG: JSON parse error for ${role}:`, error));
+        console.log(chalk.red(`🔍 CHAT DEBUG: Raw body:`, bodyStr.substring(0, 200)));
+      }
+    }
   }
 }
