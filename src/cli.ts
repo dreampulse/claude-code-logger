@@ -7,8 +7,8 @@ import { ProxyServer } from './proxy-server';
 const program = new Command();
 
 program
-  .name('middleware-logger')
-  .description('HTTP/HTTPS proxy middleware with logging capabilities')
+  .name('claude-code-logger')
+  .description('HTTP/HTTPS proxy logger for analyzing Claude Code traffic')
   .version('1.0.0');
 
 program

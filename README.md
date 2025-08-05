@@ -1,75 +1,165 @@
-# Middleware Logger
+# Claude Code Logger
 
-Ein HTTP/HTTPS Proxy-Server mit Logging-Funktionalität für Node.js/TypeScript.
+A specialized HTTP/HTTPS proxy logger designed for analyzing and debugging [Claude Code](https://claude.ai/code) traffic with enhanced chat mode visualization.
 
-## Features
+## 🎯 Primary Purpose
 
-- ✅ HTTP und HTTPS Proxy-Unterstützung
-- ✅ Parallele Request-Behandlung
-- ✅ Detailliertes Console-Logging
-- ✅ CLI-Interface mit Commander.js
-- ✅ TypeScript Support
-- ✅ Markdown-Rendering in der Konsole (Chat-Mode)
-- ✅ Server-Sent Events (SSE) Unterstützung
-- ✅ Chat-Mode mit Live-Streaming
+This tool was built specifically to help developers understand and debug the communication between Claude Code and the Anthropic API. It provides a clean, formatted view of the conversation flow, making it easier to:
 
-## Installation
+- Debug Claude Code behavior
+- Analyze API requests and responses
+- Monitor token usage and quotas
+- Understand the structure of system prompts and tool usage
+- Archive conversations for later analysis
 
+## 🚀 Quick Start for Claude Code Logging
+
+1. Install dependencies and build:
 ```bash
 npm install
 npm run build
 ```
 
-## Verwendung
-
+2. Start the logger proxy:
 ```bash
-# HTTP Proxy
-npm run start -- start -p 8080 -h example.com -r 80
-
-# HTTPS Proxy
-npm run start -- start -p 8080 -h example.com -r 443 --https
-
-# Mit Body-Logging
-npm run start -- start -p 8080 -h example.com -r 80 --log-body
-
-# Lokaler HTTPS Server
-npm run start -- start -p 8080 -h example.com -r 80 --local-https
-
-# Development
-npm run dev -- start -p 8080 -h example.com -r 80
+npm run dev -- start
 ```
 
-### Parameter
-
-- `-p, --port <port>`: Lokaler Port zum Lauschen
-- `-h, --host <host>`: Remote Host-Adresse
-- `-r, --remote-port <port>`: Remote Port
-- `--https`: HTTPS für Remote-Verbindung verwenden
-- `--local-https`: HTTPS-Verbindungen lokal akzeptieren
-- `--log-body`: Request und Response Bodies loggen
-- `--merge-sse`: Server-Sent Events zu lesbaren Nachrichten zusammenfassen
-- `--debug`: Debug-Meldungen für Troubleshooting anzeigen
-- `--chat-mode`: Nur Chat-Unterhaltung mit Live-Streaming anzeigen
-- `-v, --verbose`: Vollständige Prompts ohne Kürzung anzeigen
-
-## Beispiel
-
+3. In a new terminal, launch Claude Code with the proxy:
 ```bash
-# Proxy für httpbin.org
-npm run dev -- start -p 8080 -h httpbin.org -r 443 --https
-
-# Mit Body-Logging
-npm run dev -- start -p 8080 -h httpbin.org -r 443 --https --log-body
-
-# Mit SSE Merging (für AI API Streams)
-npm run dev -- start -p 8080 -h api.anthropic.com -r 443 --https --log-body --merge-sse
-
-# Chat-Modus (nur Unterhaltung anzeigen)
-npm run dev -- start -p 8080 -h api.anthropic.com -r 443 --https --chat-mode
-
-# Test mit curl
-curl http://localhost:8080/get
-curl -X POST http://localhost:8080/post -d '{"test": "data"}' -H "Content-Type: application/json"
+ANTHROPIC_BASE_URL=http://localhost:8000/ claude
 ```
 
-Das Logging zeigt alle eingehenden Requests und ausgehenden Responses mit Timestamps, Status Codes, Header-Informationen und optional auch die vollständigen Request/Response Bodies an.
+That's it! You'll now see a beautifully formatted log of all Claude Code interactions in your terminal.
+
+## ✨ Features
+
+### Claude Code Specific
+- **🤖 Chat Mode**: Automatically enabled by default, shows only the conversation between you and Claude
+- **📝 Markdown Rendering**: AI responses are rendered with proper formatting (lists, code blocks, emphasis)
+- **🔍 System Prompt Visibility**: See system reminders, file contents, and context provided to Claude
+- **🔧 Tool Usage Tracking**: Monitor when Claude uses tools like file reading, editing, or web searches
+- **📊 Verbose Mode**: Use `-v` flag to see full prompts without truncation
+
+### General Proxy Features
+- **✅ HTTP and HTTPS Support**: Works with both protocols
+- **✅ Request/Response Logging**: Detailed logging of all traffic
+- **✅ Body Content Logging**: Optional logging of request/response bodies
+- **✅ Server-Sent Events (SSE)**: Proper handling and merging of streaming responses
+- **✅ Compression Support**: Handles gzip, deflate, and brotli compressed responses
+- **✅ Parallel Request Handling**: Efficiently handles multiple concurrent requests
+
+## 📋 All CLI Options
+
+```bash
+claude-code-logger start [options]
+
+Options:
+  -p, --port <port>         Local port to listen on (default: 8000)
+  -h, --host <host>         Remote host address (default: api.anthropic.com)
+  -r, --remote-port <port>  Remote port (default: 443)
+  --https                   Use HTTPS for remote connection (default: true)
+  --local-https             Accept HTTPS connections locally (default: false)
+  --log-body                Log request and response bodies (default: false)
+  --merge-sse               Merge Server-Sent Events into readable messages (default: false)
+  --debug                   Show debug messages for troubleshooting (default: false)
+  --chat-mode               Show only chat conversation with live streaming (default: true)
+  -v, --verbose             Show full prompts without truncation (default: false)
+```
+
+## 🔍 Usage Examples
+
+### Claude Code Logging (Primary Use Case)
+```bash
+# Basic usage - logs Claude Code conversations
+npm run dev -- start
+ANTHROPIC_BASE_URL=http://localhost:8000/ claude
+
+# With full prompt visibility
+npm run dev -- start --verbose
+ANTHROPIC_BASE_URL=http://localhost:8000/ claude
+
+# With debug information
+npm run dev -- start --debug
+ANTHROPIC_BASE_URL=http://localhost:8000/ claude
+
+# Log to file for later analysis
+npm run dev -- start 2>&1 | tee claude-session-$(date +%Y%m%d-%H%M%S).log
+```
+
+### General Proxy Usage
+```bash
+# Proxy any HTTP service
+npm run dev -- start -p 3000 -h example.com -r 80 --https=false --chat-mode=false
+
+# Log all traffic with bodies
+npm run dev -- start -h api.example.com --log-body --chat-mode=false
+
+# Debug mode for troubleshooting
+npm run dev -- start --debug --log-body --chat-mode=false
+```
+
+## 📸 What You'll See
+
+In chat mode (default), the output is clean and focused:
+
+```
+🚀 Proxy server started on http://localhost:8000
+📡 Forwarding to https://api.anthropic.com:443
+📝 Logging all traffic to console...
+
+👤 How do I read a file in Python?
+
+🤖 To read a file in Python, you can use the built-in `open()` function. Here are the most common approaches:
+
+### Basic File Reading
+
+```python
+# Read entire file content
+with open('filename.txt', 'r') as file:
+    content = file.read()
+    print(content)
+```
+
+... (formatted markdown output) ...
+```
+
+## 🛠 Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev -- start
+
+# Build for production
+npm run build
+
+# Type checking
+npm run typecheck
+
+# Linting
+npm run lint
+```
+
+## 📦 Installation as Global Package
+
+Once published to npm:
+
+```bash
+npm install -g claude-code-logger
+claude-code-logger start
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! This tool is specifically designed for Claude Code, but can be extended for other use cases.
+
+## 📄 License
+
+MIT
+
+---
+
+**Note**: This tool is not affiliated with Anthropic. It's an independent project designed to help developers work more effectively with Claude Code.

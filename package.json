@@ -1,10 +1,10 @@
 {
-  "name": "middleware-logger",
+  "name": "claude-code-logger",
   "version": "1.0.0",
-  "description": "HTTP/HTTPS proxy middleware with logging capabilities",
+  "description": "HTTP/HTTPS proxy logger for analyzing Claude Code traffic with enhanced chat mode visualization",
   "main": "dist/index.js",
   "bin": {
-    "middleware-logger": "dist/cli.js"
+    "claude-code-logger": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -16,11 +16,18 @@
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
     "proxy",
+    "logger",
     "middleware",
     "logging",
     "http",
-    "https"
+    "https",
+    "ai",
+    "debugging",
+    "chat"
   ],
   "author": "",
   "license": "MIT",
