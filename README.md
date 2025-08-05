@@ -12,25 +12,26 @@ This tool was built specifically to help developers understand and debug the com
 - Understand the structure of system prompts and tool usage
 - Archive conversations for later analysis
 
-## 🚀 Quick Start for Claude Code Logging
+## 🚀 Quick Start (No Installation Required!)
 
-1. Install dependencies and build:
+Simply run these two commands in separate terminals:
+
+**Terminal 1 - Start the logger:**
 ```bash
-npm install
-npm run build
+npx claude-code-logger start
 ```
 
-2. Start the logger proxy:
-```bash
-npm run dev -- start
-```
-
-3. In a new terminal, launch Claude Code with the proxy:
+**Terminal 2 - Start Claude Code with proxy:**
 ```bash
 ANTHROPIC_BASE_URL=http://localhost:8000/ claude
 ```
 
 That's it! You'll now see a beautifully formatted log of all Claude Code interactions in your terminal.
+
+For help and options:
+```bash
+npx claude-code-logger start --help
+```
 
 ## ✨ Features
 
@@ -143,10 +144,14 @@ npm run typecheck
 npm run lint
 ```
 
-## 📦 Installation as Global Package
+## 📦 Installation Options
 
-Once published to npm:
+### Option 1: Use without installation (Recommended)
+```bash
+npx claude-code-logger start
+```
 
+### Option 2: Install globally
 ```bash
 npm install -g claude-code-logger
 claude-code-logger start

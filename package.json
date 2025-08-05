@@ -1,6 +1,6 @@
 {
   "name": "claude-code-logger",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "HTTP/HTTPS proxy logger for analyzing Claude Code traffic with enhanced chat mode visualization",
   "main": "dist/index.js",
   "bin": {
