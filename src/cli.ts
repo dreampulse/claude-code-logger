@@ -14,15 +14,15 @@ program
 program
   .command('start')
   .description('Start the proxy server')
-  .requiredOption('-p, --port <port>', 'Local port to listen on', parseInt)
-  .requiredOption('-h, --host <host>', 'Remote host address')
-  .requiredOption('-r, --remote-port <port>', 'Remote port', parseInt)
-  .option('--https', 'Use HTTPS for remote connection', false)
+  .option('-p, --port <port>', 'Local port to listen on', (val) => parseInt(val), 8000)
+  .option('-h, --host <host>', 'Remote host address', 'api.anthropic.com')
+  .option('-r, --remote-port <port>', 'Remote port', (val) => parseInt(val), 443)
+  .option('--https', 'Use HTTPS for remote connection', true)
   .option('--local-https', 'Accept HTTPS connections locally', false)
   .option('--log-body', 'Log request and response bodies', false)
   .option('--merge-sse', 'Merge Server-Sent Events into readable messages', false)
   .option('--debug', 'Show debug messages for troubleshooting', false)
-  .option('--chat-mode', 'Show only chat conversation with live streaming', false)
+  .option('--chat-mode', 'Show only chat conversation with live streaming', true)
   .option('-v, --verbose', 'Show full prompts without truncation', false)
   .action(async (options) => {
     try {

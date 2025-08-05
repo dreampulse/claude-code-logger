@@ -9,6 +9,9 @@ Ein HTTP/HTTPS Proxy-Server mit Logging-Funktionalität für Node.js/TypeScript.
 - ✅ Detailliertes Console-Logging
 - ✅ CLI-Interface mit Commander.js
 - ✅ TypeScript Support
+- ✅ Markdown-Rendering in der Konsole (Chat-Mode)
+- ✅ Server-Sent Events (SSE) Unterstützung
+- ✅ Chat-Mode mit Live-Streaming
 
 ## Installation
 
@@ -47,6 +50,7 @@ npm run dev -- start -p 8080 -h example.com -r 80
 - `--merge-sse`: Server-Sent Events zu lesbaren Nachrichten zusammenfassen
 - `--debug`: Debug-Meldungen für Troubleshooting anzeigen
 - `--chat-mode`: Nur Chat-Unterhaltung mit Live-Streaming anzeigen
+- `-v, --verbose`: Vollständige Prompts ohne Kürzung anzeigen
 
 ## Beispiel
 

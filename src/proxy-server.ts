@@ -3,6 +3,8 @@ import * as https from 'https';
 import * as net from 'net';
 import * as zlib from 'zlib';
 import chalk from 'chalk';
+import { marked } from 'marked';
+import TerminalRenderer from 'marked-terminal';
 
 export interface ProxyServerOptions {
   localPort: number;
@@ -36,6 +38,26 @@ export class ProxyServer {
 
   constructor(options: ProxyServerOptions) {
     this.options = options;
+    
+    // Configure marked with terminal renderer
+    marked.setOptions({
+      renderer: new TerminalRenderer({
+        code: chalk.cyan,
+        blockquote: chalk.gray,
+        html: chalk.gray,
+        heading: chalk.green.bold,
+        firstHeading: chalk.green.bold.underline,
+        hr: chalk.gray,
+        listitem: chalk.white,
+        paragraph: chalk.white,
+        strong: chalk.bold,
+        em: chalk.italic,
+        codespan: chalk.cyan,
+        del: chalk.strikethrough,
+        link: chalk.blue.underline,
+        href: chalk.blue.underline
+      }) as any
+    });
     
     if (options.localHttps) {
       this.server = https.createServer(this.handleRequest.bind(this));
@@ -404,6 +426,47 @@ export class ProxyServer {
            (trimmed.startsWith('[') && trimmed.endsWith(']'));
   }
 
+  private containsMarkdown(text: string): boolean {
+    // Check for common markdown patterns
+    const markdownPatterns = [
+      /^#{1,6}\s/m,           // Headers
+      /\*\*[^*]+\*\*/,        // Bold
+      /\*[^*]+\*/,            // Italic  
+      /\[([^\]]+)\]\([^)]+\)/, // Links
+      /^```[\s\S]*?```$/m,    // Code blocks
+      /`[^`]+`/,              // Inline code
+      /^[-*+]\s/m,            // Lists
+      /^\d+\.\s/m,            // Numbered lists
+      /^>\s/m,                // Blockquotes
+      /!\[([^\]]*)\]\([^)]+\)/ // Images
+    ];
+    
+    return markdownPatterns.some(pattern => pattern.test(text));
+  }
+
+  private renderMarkdown(text: string): string {
+    try {
+      // If it contains markdown, render it
+      if (this.containsMarkdown(text)) {
+        if (this.options.debug) {
+          console.log(chalk.magenta('🔍 DEBUG: Rendering markdown for text:', text.substring(0, 50) + '...'));
+        }
+        // Use parse instead of parseInline to support all markdown features
+        const rendered = marked.parse(text) as string;
+        if (this.options.debug) {
+          console.log(chalk.magenta('🔍 DEBUG: Rendered result:', rendered.substring(0, 50) + '...'));
+        }
+        return rendered;
+      }
+    } catch (error) {
+      // If rendering fails, return original text
+      if (this.options.debug) {
+        console.log(chalk.magenta('🔍 DEBUG: Markdown rendering failed:', error));
+      }
+    }
+    return text;
+  }
+
   private processSseStream(requestId: string, body: Buffer): void {
     const bodyStr = body.toString('utf8');
     const events = this.parseSseEvents(bodyStr);
@@ -467,13 +530,14 @@ export class ProxyServer {
     }
     
     if (textDeltas.length > 0) {
-      sseMessage.mergedContent += textDeltas.join('');
+      const newText = textDeltas.join('');
+      sseMessage.mergedContent += newText;
       
       if (this.options.chatMode) {
-        // In chat mode, show streaming text directly
-        process.stdout.write(chalk.white(textDeltas.join('')));
+        // In chat mode, collect text but don't display during streaming
+        // We'll render everything with markdown at the end
       } else {
-        console.log(chalk.gray(`[${requestId}] 📝 +${textDeltas.join('')}`));
+        console.log(chalk.gray(`[${requestId}] 📝 +${newText}`));
       }
     }
     
@@ -488,10 +552,15 @@ export class ProxyServer {
     
     if (hasMessageStop || hasContentBlockStop || hasMessageDelta) {
       if (this.options.chatMode) {
-        console.log(''); // New line after streaming
+        // In chat mode, render the complete message with markdown
+        if (sseMessage.mergedContent) {
+          const rendered = this.renderMarkdown(sseMessage.mergedContent);
+          console.log(chalk.blue('🤖 ') + rendered.trim());
+        }
       } else {
         console.log(chalk.cyan(`[${requestId}] 📥 SSE Complete Message:`));
-        console.log(chalk.green(sseMessage.mergedContent || '<empty message>'));
+        const rendered = this.renderMarkdown(sseMessage.mergedContent || '<empty message>');
+        console.log(chalk.green(rendered));
         console.log(chalk.gray('─'.repeat(60)));
       }
       this.sseMessages.delete(requestId);
@@ -602,7 +671,8 @@ export class ProxyServer {
             
             // Handle different content formats
             if (typeof message.content === 'string') {
-              console.log(chalk.green('👤 ') + chalk.white(message.content));
+              const rendered = this.renderMarkdown(message.content);
+              console.log(chalk.green('👤 ') + rendered);
             } else if (Array.isArray(message.content)) {
               // Complex content array
               message.content.forEach((item: any) => {
@@ -626,7 +696,8 @@ export class ProxyServer {
                     // Extract the actual user message
                     const userPart = item.text.split('</system-reminder>').pop()?.trim();
                     if (userPart && userPart.length > 0) {
-                      console.log(chalk.green('👤 ') + chalk.white(userPart));
+                      const rendered = this.renderMarkdown(userPart);
+                      console.log(chalk.green('👤 ') + rendered);
                     }
                   } else if (item.text.includes('Contents of') && item.text.includes('```')) {
                     // File content
@@ -641,7 +712,8 @@ export class ProxyServer {
                     }
                   } else {
                     // Regular message
-                    console.log(chalk.green('👤 ') + chalk.white(item.text));
+                    const rendered = this.renderMarkdown(item.text);
+                    console.log(chalk.green('👤 ') + rendered);
                   }
                 } else if (item.type === 'tool_result' && item.content) {
                   // Tool results (like file reads)
@@ -676,10 +748,13 @@ export class ProxyServer {
               ? message.content 
               : message.content?.[0]?.text || '';
             if (content) {
+              const rendered = this.renderMarkdown(content);
               if (this.options.verbose) {
-                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + chalk.white(content));
+                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + rendered);
               } else {
-                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + chalk.white(content.substring(0, 100) + '...'));
+                const truncated = content.substring(0, 100) + '...';
+                const renderedTruncated = this.renderMarkdown(truncated);
+                console.log(chalk.blue('🤖 ') + chalk.gray('[previous] ') + renderedTruncated);
               }
             }
           }
@@ -700,7 +775,8 @@ export class ProxyServer {
         }
         
         if (textContent.trim()) {
-          console.log(chalk.blue('🤖 ') + chalk.white(textContent));
+          const rendered = this.renderMarkdown(textContent);
+          console.log(chalk.blue('🤖 ') + rendered);
         }
       } else {
         if (this.options.debug) {

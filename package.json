@@ -11,14 +11,21 @@
     "start": "node dist/cli.js",
     "dev": "ts-node src/cli.ts",
     "dev:log": "stdbuf -oL -eL ts-node src/cli.ts 2>&1 | tee middleware-logger.log",
-    "dev:log-example": "stdbuf -oL -eL ts-node src/cli.ts start -p 8000 -h api.anthropic.com -r 443 --https --chat-mode --verbose 2>&1 | tee middleware-logger.log",
+    "dev:log-example": "stdbuf -oL -eL ts-node src/cli.ts start -p 8000 -h api.anthropic.com -r 443 --https --chat-mode --verbose --debug 2>&1 | tee middleware-logger.log",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["proxy", "middleware", "logging", "http", "https"],
+  "keywords": [
+    "proxy",
+    "middleware",
+    "logging",
+    "http",
+    "https"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
@@ -27,7 +34,10 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@types/marked": "^5.0.2",
+    "chalk": "^4.1.2",
     "commander": "^11.0.0",
-    "chalk": "^4.1.2"
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0"
   }
 }
